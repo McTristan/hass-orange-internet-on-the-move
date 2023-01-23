@@ -65,8 +65,8 @@ class LoginClient:
         self.token = ""
 
     async def client(self):
-        headers = [{"x-application", "CLIENT_PORTAL"},
-                   {"x-provider", "RENAULT"}]
+        headers = {"x-application", "CLIENT_PORTAL",
+                   "x-provider", "RENAULT"}
         basicAuthorization = aiohttp.helpers.BasicAuth(
             self.config[CONF_USERNAME], self.config[CONF_PASSWORD]
         )
