@@ -1,15 +1,21 @@
-import voluptuous as vol
 import logging
-import homeassistant.helpers.config_validation as cv
-from homeassistant import config_entries
-from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, BASE_URL
+
 import aiohttp
+import voluptuous as vol
+from homeassistant import config_entries
+
+from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, BASE_URL
 
 _LOGGER = logging.getLogger(__name__)
+DATA_SCHEMA = {
+    vol.Required(CONF_USERNAME): str,
+    vol.Required(CONF_PASSWORD): str,
+}
 
 
 class SetupConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
+    CONNECTION_CLASS = config_entries.CONN_CLASS_CLOUD_POLL
 
     async def async_step_user(self, user_input=None):
         """Called once with None as user_input, then a second time with user provided input"""
@@ -20,8 +26,8 @@ class SetupConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.debug(f"User input is {user_input}")
             _LOGGER.info("Testing connectivity to OBS api")
             try:
-                loginClient = LoginClient(user_input)
-                await loginClient.client()
+                login_client = LoginClient(user_input)
+                await login_client.client()
                 valid = True
             except aiohttp.ClientResponseError as exception:
                 _LOGGER.error(f"Error while login to Orange API. Credentials are likely incorrect : {exception}")
@@ -31,20 +37,11 @@ class SetupConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "generic_error"
             if valid:
                 _LOGGER.debug("Connectivity to Orange API validated")
-                self.user_input = user_input
-                # if "sensors" not in self.user_input:
-                #     self.user_input["sensors"] = []
-                # if CONF_ENEDIS_LOAD_SHEDDING not in self.user_input:
-                #     self.user_input[CONF_ENEDIS_LOAD_SHEDDING] = [False]
-                #
-            return self._configuration_menu("user")
 
-        data_schema = {
-            vol.Required(CONF_USERNAME): str,
-            vol.Required(CONF_PASSWORD): str,
-        }
+            return self.async_create_entry(title="Orange Internet on the move Data", data=user_input)
 
-        return self.async_show_form(step_id="user", data_schema=vol.Schema(data_schema), errors=errors)
+        # If there is no user input or there were errors, show the form again, including any errors that were found with the input.
+        return self.async_show_form(step_id="user", data_schema=vol.Schema(DATA_SCHEMA), errors=errors)
 
     def _configuration_menu(self, step_id: str):
         return self.async_show_menu(

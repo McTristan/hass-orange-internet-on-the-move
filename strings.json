@@ -9,6 +9,13 @@
           "config_password": "password"
         }
       }
+    },
+    "error": {
+      "auth_error": "Authentication failed, credentials may be invalid",
+      "generic_error": "Connection to Orange API failed for an unknown reason"
+    },
+    "abort": {
+      "already_configured": "Device is already configured"
     }
   }
 }

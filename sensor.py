@@ -1,40 +1,176 @@
 """Platform for sensor integration."""
 from __future__ import annotations
 
+import logging
+from datetime import timedelta
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorStateClass,
 )
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfInformation
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
+
+from .const import (
+    DOMAIN, )
+
+_LOGGER = logging.getLogger(__name__)
 
 
-def setup_platform(
-    hass: HomeAssistant,
-    config: ConfigType,
-    add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None
+def async_setup_entry(
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        async_add_entities: AddEntitiesCallback
 ) -> None:
+    _LOGGER.info("Called async setup entry")
     """Set up the sensor platform."""
-    add_entities([DataSensor()])
+
+    # assuming API object stored here by __init__.py
+    obs_api = hass.data[DOMAIN][entry.entry_id]
+    obs_coordinator = OBSCoordinator(hass, obs_api)
+
+    # Fetch initial data so we have data when entities subscribe
+    #
+    # If the refresh fails, async_config_entry_first_refresh will
+    # raise ConfigEntryNotReady and setup will try again later
+    #
+    # If you do not want to retry setup on failure, use
+    # coordinator.async_refresh() instead
+    #
+    await obs_coordinator.async_config_entry_first_refresh()
+
+    async_add_entities(
+        DataSensorEntity(obs_coordinator, idx) for idx, ent in enumerate(obs_coordinator.data)
+    )
 
 
+"""
 class DataSensor(SensorEntity):
-    """Representation of a Sensor."""
 
-    _attr_name = "Data contract"
-    _attr_native_unit_of_measurement = UnitOfInformation.KILOBYTES
-    _attr_device_class = SensorDeviceClass.DATA_SIZE
-    _attr_state_class = SensorStateClass.MEASUREMENT
+    def __init__(self, obs_coordinator: OBSAPICoordinator, hass: HomeAssistant):
+        self._attr_name = "Data contract"
+        self._attr_native_unit_of_measurement = UnitOfInformation.KILOBYTES
+        self._attr_device_class = SensorDeviceClass.DATA_SIZE
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self.coordinator = obs_coordinator
+        super().__init__(hass=hass)
 
-
+    @property
+    def unique_id(self) -> str:
+        return f"orange-internet-on-the-move-subscription"
 
     def update(self) -> None:
-        """Fetch new state data for the sensor.
-
-        This is the only method that should fetch new data for Home Assistant.
-        """
+        self.coordinator.
         self._attr_native_value = 1048576
+
+
+        SensorEntityDescription(
+            key="data_limit",
+            name="Data limit",
+            native_unit_of_measurement=UnitOfInformation.KILOBITS,
+            device_class=SensorDeviceClass.DATA_SIZE,
+            icon="mdi:download",
+        ),
+        SensorEntityDescription(
+            key="data_remaining",
+            name="Data remaining",
+            native_unit_of_measurement=UnitOfInformation.KILOBITS,
+            device_class=SensorDeviceClass.DATA_SIZE,
+            icon="mdi:download",
+        )
+"""
+
+
+class DataSensorEntity(CoordinatorEntity, SensorEntity):
+    """An entity using CoordinatorEntity.
+
+    The CoordinatorEntity class provides:
+      should_poll
+      async_update
+      async_added_to_hass
+      available
+
+    """
+
+    def __init__(self, coordinator, data_consummed):
+        """Pass coordinator to CoordinatorEntity."""
+        super().__init__(coordinator, context=data_consummed)
+        self._attr_name = "Data contract"
+        self._attr_native_unit_of_measurement = UnitOfInformation.KILOBYTES
+        self._attr_device_class = SensorDeviceClass.DATA_SIZE
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_native_value = data_consummed
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self._attr_native_value = self.coordinator.data[self._attr_native_value]["state"]
+        self.async_write_ha_state()
+
+    async def async_turn_on(self, **kwargs):
+        """Turn the light on.
+
+        Example method how to request data updates.
+        """
+        # Do the turning on.
+        # ...
+
+        # Update the data
+        await self.coordinator.async_request_refresh()
+
+
+class OBSCoordinator(DataUpdateCoordinator):
+    """A coordinator to fetch data from the api only once"""
+
+    def __init__(self, hass, obs_api_client):
+        """Initialize my coordinator."""
+        super().__init__(
+            hass,
+            _LOGGER,
+            # Name of the data. For logging purposes.
+            name="Orange Internet on the move sensor",
+            # Polling interval. Will only be polled if there are subscribers.
+            update_interval=timedelta(seconds=60),
+        )
+        self.obs_api_client = obs_api_client
+
+    async def _async_update_data(self):
+        """Fetch data from API endpoint.
+
+        This is the place to pre-process the data to lookup tables
+        so entities can quickly look up their data.
+        """
+        try:
+            # Note: asyncio.TimeoutError and aiohttp.ClientError are already
+            # handled by the data update coordinator.
+            # async with async_timeout.timeout(10):
+            # Grab active context variables to limit data required to be fetched from API
+            # Note: using context is not required if there is no need or ability to limit
+            # data retrieved from API.
+            # listening_idx = set(self.async_contexts())
+            # return await self.my_api.fetch_data(listening_idx)
+            _LOGGER.debug("Starting collecting data")
+            _LOGGER.debug("Fake call on OBS API")
+
+            return 10241024
+
+            """
+            auth_token = await self.obs_api_client.get_auth_token()
+            user_info = await self.obs_api_client.get_user_info()
+            first_device_info = await self.obs_api_client.get_devices_info()
+            consumption_info = await self.obs_api_client.get_consumption_of_device(device=first_device_info)
+
+            return consumption_info
+            """
+        except ApiAuthError as err:
+            # Raising ConfigEntryAuthFailed will cancel future updates
+            # and start a config flow with SOURCE_REAUTH (async_step_reauth)
+            raise ConfigEntryAuthFailed from err
+        except ApiError as err:
+            raise UpdateFailed(f"Error communicating with API: {err}")
+        except Exception as err:
+            raise UpdateFailed(f"Error communicating with API: {err}")
