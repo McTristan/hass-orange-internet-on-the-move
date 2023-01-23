@@ -4,7 +4,7 @@ import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
 
-from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, BASE_URL
+from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, BASE_URL, ENDPOINT_LOGIN
 
 _LOGGER = logging.getLogger(__name__)
 DATA_SCHEMA = {
@@ -67,12 +67,13 @@ class LoginClient:
     async def client(self):
         headers = {"x-application": "CLIENT_PORTAL",
                    "x-provider": "RENAULT"}
-        basicAuthorization = aiohttp.helpers.BasicAuth(
+        basic_authorization = aiohttp.helpers.BasicAuth(
             self.config[CONF_USERNAME], self.config[CONF_PASSWORD]
         )
 
+        _LOGGER.debug(f"Authenticating with basic auth {basic_authorization}")
         async with aiohttp.ClientSession() as session:
-            async with session.post(BASE_URL, auth=basicAuthorization, headers=headers) as response:
+            async with session.post(BASE_URL + ENDPOINT_LOGIN, auth=basic_authorization, headers=headers) as response:
                 _LOGGER.debug("Status:", response.status)
                 _LOGGER.debug("x-auth-token:", response.headers['x-auth-token'])
         await response.text()
