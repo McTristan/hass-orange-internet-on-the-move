@@ -90,22 +90,34 @@ class DataSensor(SensorEntity):
 """
 
 
-class DataConsumedSensorEntity(CoordinatorEntity, SensorEntity):
-    """An entity using CoordinatorEntity.
+class SensorDataBase(CoordinatorEntity):
+    def __init__(self, coordinator, data_plan_device: ConsumptionOfDevice):
+        """Initialize the sensor."""
+        super().__init__(coordinator, context=data_plan_device)
+        self.data_plan_device = data_plan_device
+        self.id = 123456789876543210
 
-    The CoordinatorEntity class provides:
-      should_poll
-      async_update
-      async_added_to_hass
-      available
+    # To link this entity to the cover device, this property must return an
+    # identifiers value matching that used in the cover, but no other information such
+    # as name. If name is returned, this entity will then also become a device in the
+    # HA UI.
+    @property
+    def device_info(self):
+        """Return information to link this entity with the correct device."""
+        return {"identifiers": {(DOMAIN, self.id)}}
+        # return {"identifiers": {(DOMAIN, self.plan_data.roller_id)}}
 
-    """
+
+# todo check https://developers.home-assistant.io/docs/device_registry_index/#defining-devices
+class DataConsumedSensorEntity(SensorEntity, SensorDataBase):
 
     def __init__(self, coordinator, data_plan: ConsumptionOfDevice):
         _LOGGER.info(f"Creating DataSensorEntity with {data_plan}")
         """Pass coordinator to CoordinatorEntity."""
-        super().__init__(coordinator, context=data_plan)
+
+        super().__init__(coordinator, data_plan)
         self._attr_name = "Data consummed"
+        self._attr_unique_id = f"{self.id}_consumed_data"
         self._attr_native_unit_of_measurement = UnitOfInformation.KILOBYTES
         self._attr_device_class = SensorDeviceClass.DATA_SIZE
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -120,22 +132,14 @@ class DataConsumedSensorEntity(CoordinatorEntity, SensorEntity):
         self.async_write_ha_state()
 
 
-class DataSensorEntity(CoordinatorEntity, SensorEntity):
-    """An entity using CoordinatorEntity.
-
-    The CoordinatorEntity class provides:
-      should_poll
-      async_update
-      async_added_to_hass
-      available
-
-    """
+class DataSensorEntity(SensorEntity, SensorDataBase):
 
     def __init__(self, coordinator, data_plan: ConsumptionOfDevice):
         _LOGGER.info(f"Creating DataSensorEntity with {data_plan}")
         """Pass coordinator to CoordinatorEntity."""
-        super().__init__(coordinator, context=data_plan)
+        super().__init__(coordinator, data_plan)
         self._attr_name = "Data Plan"
+        self._attr_unique_id = f"{self.id}_initial_data"
         self._attr_native_unit_of_measurement = UnitOfInformation.KILOBYTES
         self._attr_device_class = SensorDeviceClass.DATA_SIZE
         self._attr_state_class = SensorStateClass.MEASUREMENT
