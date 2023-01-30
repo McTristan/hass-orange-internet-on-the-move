@@ -7,6 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
+from .dto import ConsumptionOfDevice
 from .const import (
     DOMAIN, CONF_USERNAME, CONF_PASSWORD, BASE_URL, ENDPOINT_USER, ENDPOINT_HEADER_PROVIDER,
     ENDPOINT_HEADER_APPLICATION, ENDPOINT_LOGIN, ENDPOINT_DEVICES, ENDPOINT_DEVICE_CONSUMPTION,
@@ -132,7 +133,7 @@ class ObsHttpClient:
     async def get_device_id(self, device_info_response):
         return device_info_response[0].id
 
-    async def get_consumption_of_device(self, device):
+    async def get_consumption_of_device(self, device) -> ConsumptionOfDevice:
         additional_headers = [
             {"x-application", ENDPOINT_HEADER_APPLICATION},
             {"x-provider", ENDPOINT_HEADER_PROVIDER},
@@ -145,8 +146,14 @@ class ObsHttpClient:
                 _LOGGER.debug("Status:", response.status)
         device_consumption_response = await response.json()
         _LOGGER.debug(f"Fetched user info {device_consumption_response}")
-        _LOGGER.debug(f"Select first object device consumption {device_consumption_response[0]}")
-        return device_consumption_response[0]
+        first_device = device_consumption_response[0]
+        _LOGGER.debug(f"Select first object device consumption {first_device}")
+        return ConsumptionOfDevice(first_device.type,
+                                   first_device.initial_data,
+                                   first_device.left_data,
+                                   first_device.expiry_date,
+                                   first_device.start_date,
+                                   )
 
         # type
         # initial_data

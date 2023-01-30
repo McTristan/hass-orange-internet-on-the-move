@@ -14,7 +14,7 @@ from homeassistant.const import UnitOfInformation
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
-
+from .dto import ConsumptionOfDevice
 from .const import (
     DOMAIN, )
 
@@ -31,7 +31,7 @@ async def async_setup_entry(
 
     # assuming API object stored here by __init__.py
     obs_api = hass.data[DOMAIN][entry.entry_id]
-    obs_coordinator = OBSCoordinator(hass, obs_api)
+    obs_coordinator: OBSCoordinator = OBSCoordinator(hass, obs_api)
 
     # Fetch initial data so we have data when entities subscribe
     #
@@ -46,7 +46,7 @@ async def async_setup_entry(
 
     _LOGGER.info(f"async_add_entities with {obs_coordinator.data}")
     async_add_entities(
-        DataSensorEntity(obs_coordinator, data_consummed) for data_consummed in enumerate(obs_coordinator.data)
+        DataSensorEntity(obs_coordinator, obs_coordinator.data)
     )
     _LOGGER.info("async_add_entities done")
 
@@ -99,15 +99,15 @@ class DataSensorEntity(CoordinatorEntity, SensorEntity):
 
     """
 
-    def __init__(self, coordinator, data_consummed):
-        _LOGGER.info(f"Creating DataSensorEntity with {data_consummed} and {coordinator}")
+    def __init__(self, coordinator, data_plan: ConsumptionOfDevice):
+        _LOGGER.info(f"Creating DataSensorEntity with {data_plan}")
         """Pass coordinator to CoordinatorEntity."""
-        super().__init__(coordinator, context=data_consummed)
-        self._attr_name = "Data contract"
+        super().__init__(coordinator, context=data_plan)
+        self._attr_name = "Data consummed"
         self._attr_native_unit_of_measurement = UnitOfInformation.KILOBYTES
         self._attr_device_class = SensorDeviceClass.DATA_SIZE
         self._attr_state_class = SensorStateClass.MEASUREMENT
-        self._attr_native_value = data_consummed
+        self._attr_native_value = data_plan.left_data
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -129,7 +129,7 @@ class DataSensorEntity(CoordinatorEntity, SensorEntity):
         await self.coordinator.async_request_refresh()
 
 
-class OBSCoordinator(DataUpdateCoordinator):
+class OBSCoordinator(DataUpdateCoordinator[ConsumptionOfDevice]):
     """A coordinator to fetch data from the api only once"""
 
     def __init__(self, hass, obs_api_client):
@@ -147,7 +147,9 @@ class OBSCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         _LOGGER.debug("Starting collecting data")
         _LOGGER.debug("Fake call on OBS API")
-        return "10241024"
+
+        return ConsumptionOfDevice("pipo", 10241024, 8501024, 1234, 1234)
+
         """Fetch data from API endpoint.
 
         This is the place to pre-process the data to lookup tables
@@ -162,9 +164,6 @@ class OBSCoordinator(DataUpdateCoordinator):
             # data retrieved from API.
             # listening_idx = set(self.async_contexts())
             # return await self.my_api.fetch_data(listening_idx)
-
-
-
 
             """
             auth_token = await self.obs_api_client.get_auth_token()
