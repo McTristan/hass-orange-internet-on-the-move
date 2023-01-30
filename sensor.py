@@ -45,9 +45,11 @@ async def async_setup_entry(
     await obs_coordinator.async_config_entry_first_refresh()
 
     _LOGGER.info(f"async_add_entities with {obs_coordinator.data}")
-    async_add_entities(
-        DataSensorEntity(obs_coordinator, obs_coordinator.data)
-    )
+    new_devices = [DataSensorEntity(obs_coordinator, obs_coordinator.data),
+                   DataConsumedSensorEntity(obs_coordinator, obs_coordinator.data)]
+    _LOGGER.info(f"async_add_entities new_devices={new_devices}")
+    if new_devices:
+        async_add_entities(new_devices)
     _LOGGER.info("async_add_entities done")
 
 
@@ -88,7 +90,7 @@ class DataSensor(SensorEntity):
 """
 
 
-class DataSensorEntity(CoordinatorEntity, SensorEntity):
+class DataConsumedSensorEntity(CoordinatorEntity, SensorEntity):
     """An entity using CoordinatorEntity.
 
     The CoordinatorEntity class provides:
@@ -117,16 +119,35 @@ class DataSensorEntity(CoordinatorEntity, SensorEntity):
         self._attr_native_value = new_state_value
         self.async_write_ha_state()
 
-    async def async_turn_on(self, **kwargs):
-        """Turn the light on.
 
-        Example method how to request data updates.
-        """
-        # Do the turning on.
-        # ...
+class DataSensorEntity(CoordinatorEntity, SensorEntity):
+    """An entity using CoordinatorEntity.
 
-        # Update the data
-        await self.coordinator.async_request_refresh()
+    The CoordinatorEntity class provides:
+      should_poll
+      async_update
+      async_added_to_hass
+      available
+
+    """
+
+    def __init__(self, coordinator, data_plan: ConsumptionOfDevice):
+        _LOGGER.info(f"Creating DataSensorEntity with {data_plan}")
+        """Pass coordinator to CoordinatorEntity."""
+        super().__init__(coordinator, context=data_plan)
+        self._attr_name = "Data Plan"
+        self._attr_native_unit_of_measurement = UnitOfInformation.KILOBYTES
+        self._attr_device_class = SensorDeviceClass.DATA_SIZE
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_native_value = data_plan.initial_data
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        new_state_value = self.coordinator.data[self._attr_native_value]["state"]
+        _LOGGER.info(f"_handle_coordinator_update previous : {self._attr_native_value} new {new_state_value}")
+        self._attr_native_value = new_state_value
+        self.async_write_ha_state()
 
 
 class OBSCoordinator(DataUpdateCoordinator[ConsumptionOfDevice]):
@@ -148,7 +169,7 @@ class OBSCoordinator(DataUpdateCoordinator[ConsumptionOfDevice]):
         _LOGGER.debug("Starting collecting data")
         _LOGGER.debug("Fake call on OBS API")
 
-        return ConsumptionOfDevice("pipo", 10241024, 8501024, 1234, 1234)
+        return ConsumptionOfDevice("pipo", 3145728, 2411724, 1234, 1234)
 
         """Fetch data from API endpoint.
 
