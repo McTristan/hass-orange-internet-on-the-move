@@ -25,6 +25,7 @@ class SetupConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             _LOGGER.debug(f"User input is {user_input}")
             _LOGGER.info("Testing connectivity to OBS api")
+            """
             try:
                 login_client = LoginClient(user_input)
                 await login_client.client()
@@ -37,6 +38,7 @@ class SetupConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "generic_error"
             if valid:
                 _LOGGER.debug("Connectivity to Orange API validated")
+            """
 
             # TODO title may get value of contract name+car get by API
             return self.async_create_entry(title="Orange Internet on the move Data", data=user_input)

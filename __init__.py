@@ -22,13 +22,14 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info("Called async setup entry from __init__.py")
+    _LOGGER.debug(f"Async setup entry with config data {entry.data}")
 
     hass.data.setdefault(DOMAIN, {})
 
     # here we store the coordinator for future access
     if entry.entry_id not in hass.data[DOMAIN]:
         hass.data[DOMAIN][entry.entry_id] = {}
-    hass.data[DOMAIN][entry.entry_id] = ObsHttpClient(hass, dict(entry.data))
+    hass.data[DOMAIN][entry.entry_id] = ObsHttpClient(dict(entry.data))
 
     # will make sure async_setup_entry from sensor.py is called
     hass.config_entries.async_setup_platforms(entry, [Platform.SENSOR])
@@ -70,6 +71,7 @@ class ObsHttpClient:
                               {"x-provider", ENDPOINT_HEADER_PROVIDER}]
         basic_authorization = aiohttp.helpers.BasicAuth(self.config[CONF_USERNAME], self.config[CONF_PASSWORD])
 
+        _LOGGER.debug("get_auth_token")
         async with aiohttp.ClientSession() as session:
             async with session.post(BASE_URL + ENDPOINT_LOGIN,
                                     auth=basic_authorization,

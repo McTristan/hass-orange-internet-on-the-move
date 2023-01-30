@@ -21,7 +21,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-def async_setup_entry(
+async def async_setup_entry(
         hass: HomeAssistant,
         entry: ConfigEntry,
         async_add_entities: AddEntitiesCallback
@@ -41,11 +41,14 @@ def async_setup_entry(
     # If you do not want to retry setup on failure, use
     # coordinator.async_refresh() instead
     #
+    _LOGGER.info("Calling async_config_entry_first_refresh")
     await obs_coordinator.async_config_entry_first_refresh()
 
+    _LOGGER.info(f"async_add_entities with {obs_coordinator.data}")
     async_add_entities(
-        DataSensorEntity(obs_coordinator, idx) for idx, ent in enumerate(obs_coordinator.data)
+        DataSensorEntity(obs_coordinator, data_consummed) for data_consummed in enumerate(obs_coordinator.data)
     )
+    _LOGGER.info("async_add_entities done")
 
 
 """
@@ -97,6 +100,7 @@ class DataSensorEntity(CoordinatorEntity, SensorEntity):
     """
 
     def __init__(self, coordinator, data_consummed):
+        _LOGGER.info(f"Creating DataSensorEntity with {data_consummed} and {coordinator}")
         """Pass coordinator to CoordinatorEntity."""
         super().__init__(coordinator, context=data_consummed)
         self._attr_name = "Data contract"
@@ -108,7 +112,9 @@ class DataSensorEntity(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        self._attr_native_value = self.coordinator.data[self._attr_native_value]["state"]
+        new_state_value = self.coordinator.data[self._attr_native_value]["state"]
+        _LOGGER.info(f"_handle_coordinator_update previous : {self._attr_native_value} new {new_state_value}")
+        self._attr_native_value = new_state_value
         self.async_write_ha_state()
 
     async def async_turn_on(self, **kwargs):
@@ -139,6 +145,9 @@ class OBSCoordinator(DataUpdateCoordinator):
         self.obs_api_client = obs_api_client
 
     async def _async_update_data(self):
+        _LOGGER.debug("Starting collecting data")
+        _LOGGER.debug("Fake call on OBS API")
+        return "10241024"
         """Fetch data from API endpoint.
 
         This is the place to pre-process the data to lookup tables
@@ -153,10 +162,9 @@ class OBSCoordinator(DataUpdateCoordinator):
             # data retrieved from API.
             # listening_idx = set(self.async_contexts())
             # return await self.my_api.fetch_data(listening_idx)
-            _LOGGER.debug("Starting collecting data")
-            _LOGGER.debug("Fake call on OBS API")
 
-            return 10241024
+
+
 
             """
             auth_token = await self.obs_api_client.get_auth_token()
