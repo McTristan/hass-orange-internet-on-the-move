@@ -94,14 +94,14 @@ class ObsHttpClient:
         _LOGGER.debug(f"Fetched user info {device_info_response}")
         first_device_response = device_info_response[0]
         _LOGGER.debug(f"Select first object device {first_device_response}")
-        return Device(first_device_response.id,
-                      first_device_response.country,
-                      first_device_response.status,
-                      first_device_response.tag,
-                      first_device_response.user.id,
-                      first_device_response.user.name,
-                      first_device_response.creation_date,
-                      first_device_response.serial_number
+        return Device(first_device_response["id"],
+                      first_device_response["country"],
+                      first_device_response["status"],
+                      first_device_response["tag"],
+                      first_device_response["user"]["id"],
+                      first_device_response["user"]["name"],
+                      first_device_response["creation_date"],
+                      first_device_response["serial_number"]
                       )
 
     # id
@@ -125,11 +125,11 @@ class ObsHttpClient:
         _LOGGER.debug(f"Fetched consumption {device_consumption_response}")
         first_device = device_consumption_response[0]
         _LOGGER.debug(f"Select first object device consumption {first_device}")
-        return ConsumptionOfDevice(first_device.type,
-                                   first_device.initial_data,
-                                   first_device.left_data,
-                                   first_device.expiry_date,
-                                   first_device.start_date,
+        return ConsumptionOfDevice(first_device["type"],
+                                   first_device["initial_data"],
+                                   first_device["left_data"],
+                                   first_device["expiry_date"],
+                                   first_device["start_date"],
                                    )
 
         # type
