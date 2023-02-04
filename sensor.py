@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta, datetime
+from math import floor
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -10,7 +11,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfInformation
+from homeassistant.const import UnitOfInformation, PERCENTAGE
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.entity import DeviceInfo
@@ -54,7 +55,8 @@ async def async_setup_entry(
         StartDatePlanSensorEntity(obs_coordinator, obs_coordinator.data),
         ExpiryDatePlanSensorEntity(obs_coordinator, obs_coordinator.data),
         DataInitialSensorEntity(obs_coordinator, obs_coordinator.data),
-        DataConsumedSensorEntity(obs_coordinator, obs_coordinator.data),
+        DataLeftSensorEntity(obs_coordinator, obs_coordinator.data),
+        DataLeftPercentageSensorEntity(obs_coordinator, obs_coordinator.data),
         PlanTypeSensorEntity(obs_coordinator, obs_coordinator.data)
     ]
     _LOGGER.info(f"async_add_entities new_devices={new_devices}")
@@ -81,30 +83,53 @@ class SensorDataBase(CoordinatorEntity):
                 (DOMAIN, self.id)
             },
             name=f"Data Plan of {self.device.user_name} for {self.device.tag}",
-            manufacturer=ENDPOINT_HEADER_PROVIDER,
-            model=self.device_consumption.type,
+            manufacturer=f"Orange for {ENDPOINT_HEADER_PROVIDER}",
+            model=self.device.tag,
             hw_version=self.device.serial_number
         )
 
 
-class DataConsumedSensorEntity(SensorEntity, SensorDataBase):
+class DataLeftPercentageSensorEntity(SensorEntity, SensorDataBase):
 
     def __init__(self, coordinator, obs_full_data: OBSFullData):
         _LOGGER.info(f"Creating DataSensorEntity with {obs_full_data}")
         """Pass coordinator to CoordinatorEntity."""
 
         super().__init__(coordinator, obs_full_data)
-        self._attr_name = "Data consummed"
-        self._attr_unique_id = f"{self.id}_consumed_data"
-        self._attr_native_unit_of_measurement = UnitOfInformation.KILOBYTES
+        self._attr_name = "Left data percentage"
+        self._attr_unique_id = f"{self.id}_left_data_percentage"
+        self._attr_native_unit_of_measurement = PERCENTAGE
         self._attr_device_class = SensorDeviceClass.DATA_SIZE
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-        self._attr_native_value = obs_full_data.consumption.left_data
+        self._attr_native_value = floor(
+            obs_full_data.consumption.left_data / obs_full_data.consumption.initial_data * 100)
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        new_state_value = self.coordinator.data.consumption.left_data
+        new_state_value = floor(
+            self.coordinator.data.consumption.left_data / self.coordinator.data.consumption.initial_data * 100)
+        _LOGGER.info(
+            f"DataConsumedSensorEntity _handle_coordinator_update previous : {self._attr_native_value} new {new_state_value}")
+        self._attr_native_value = new_state_value
+        self.async_write_ha_state()
+
+
+class DataLeftSensorEntity(SensorEntity, SensorDataBase):
+
+    def __init__(self, coordinator, obs_full_data: OBSFullData):
+        _LOGGER.info(f"Creating DataLeftSensorEntity with {obs_full_data}")
+        super().__init__(coordinator, obs_full_data)
+        self._attr_name = "Left data"
+        self._attr_unique_id = f"{self.id}_left_data"
+        self._attr_native_unit_of_measurement = UnitOfInformation.MEGABITS
+        self._attr_device_class = SensorDeviceClass.DATA_SIZE
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_native_value = obs_full_data.consumption.left_data / 1024
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        new_state_value = self.coordinator.data.consumption.left_data / 1024
         _LOGGER.info(
             f"DataConsumedSensorEntity _handle_coordinator_update previous : {self._attr_native_value} new {new_state_value}")
         self._attr_native_value = new_state_value
@@ -117,17 +142,17 @@ class DataInitialSensorEntity(SensorEntity, SensorDataBase):
         _LOGGER.info(f"Creating DataSensorEntity with {obs_full_data}")
         """Pass coordinator to CoordinatorEntity."""
         super().__init__(coordinator, obs_full_data)
-        self._attr_name = "Data Plan"
+        self._attr_name = "Initial Data"
         self._attr_unique_id = f"{self.id}_initial_data"
-        self._attr_native_unit_of_measurement = UnitOfInformation.KILOBYTES
+        self._attr_native_unit_of_measurement = UnitOfInformation.MEGABITS
         self._attr_device_class = SensorDeviceClass.DATA_SIZE
         self._attr_state_class = SensorStateClass.MEASUREMENT
-        self._attr_native_value = obs_full_data.consumption.initial_data
+        self._attr_native_value = obs_full_data.consumption.initial_data / 1024
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        new_state_value = self.coordinator.data.consumption.initial_data
+        new_state_value = self.coordinator.data.consumption.initial_data / 1024
         _LOGGER.info(
             f"DataSensorEntity _handle_coordinator_update previous : {self._attr_native_value} new {new_state_value}")
         self._attr_native_value = new_state_value
@@ -185,6 +210,7 @@ class PlanTypeSensorEntity(SensorEntity, SensorDataBase):
         self._attr_name = "Plan Type"
         self._attr_unique_id = f"{self.id}_plan_type"
         self._attr_native_value = obs_full_data.consumption.type
+        self._attr_icon = "mdi:file-sign"
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -206,8 +232,7 @@ class OBSCoordinator(DataUpdateCoordinator[OBSFullData]):
             _LOGGER,
             # Name of the data. For logging purposes.
             name="Orange Internet on the move sensor",
-            # Polling interval. Will only be polled if there are subscribers.
-            update_interval=timedelta(seconds=360),
+            update_interval=timedelta(seconds=3600),
         )
         self.obs_api_client: ObsHttpClient = obs_api_client
 
