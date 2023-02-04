@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -87,7 +87,6 @@ class SensorDataBase(CoordinatorEntity):
         )
 
 
-# todo check https://developers.home-assistant.io/docs/device_registry_index/#defining-devices
 class DataConsumedSensorEntity(SensorEntity, SensorDataBase):
 
     def __init__(self, coordinator, obs_full_data: OBSFullData):
@@ -143,13 +142,13 @@ class StartDatePlanSensorEntity(SensorEntity, SensorDataBase):
         super().__init__(coordinator, obs_full_data)
         self._attr_name = "Start date"
         self._attr_unique_id = f"{self.id}_start_date"
-        self._attr_device_class = SensorDeviceClass.DATE
-        self._attr_native_value = obs_full_data.consumption.start_date
+        self._attr_device_class = SensorDeviceClass.TIMESTAMP
+        self._attr_native_value = datetime.fromisoformat(obs_full_data.consumption.start_date)
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        new_state_value = self.coordinator.data.consumption.start_date
+        new_state_value = datetime.fromisoformat(self.coordinator.data.consumption.start_date)
         _LOGGER.info(
             f"StartDatePlanSensorEntity _handle_coordinator_update previous : {self._attr_native_value} new {new_state_value}")
         self._attr_native_value = new_state_value
@@ -164,13 +163,13 @@ class ExpiryDatePlanSensorEntity(SensorEntity, SensorDataBase):
         super().__init__(coordinator, obs_full_data)
         self._attr_name = "Expiry date"
         self._attr_unique_id = f"{self.id}_expiry_date"
-        self._attr_device_class = SensorDeviceClass.DATE
-        self._attr_native_value = obs_full_data.consumption.expiry_date
+        self._attr_device_class = SensorDeviceClass.TIMESTAMP
+        self._attr_native_value = datetime.fromisoformat(obs_full_data.consumption.expiry_date)
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        new_state_value = self.coordinator.data.consumption.expiry_date
+        new_state_value = datetime.fromisoformat(self.coordinator.data.consumption.expiry_date)
         _LOGGER.info(
             f"ExpiryDatePlanSensorEntity _handle_coordinator_update previous : {self._attr_native_value} new {new_state_value}")
         self._attr_native_value = new_state_value
