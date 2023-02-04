@@ -3,6 +3,7 @@ import logging
 import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
+from .OBSHttpClient import ObsHttpClient, ApiAuthError
 
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, BASE_URL, ENDPOINT_LOGIN
 
@@ -25,12 +26,11 @@ class SetupConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             _LOGGER.debug(f"User input is {user_input}")
             _LOGGER.info("Testing connectivity to OBS api")
-            """
             try:
-                login_client = LoginClient(user_input)
-                await login_client.client()
+                obs_http_client = ObsHttpClient(config=user_input, hass=self.hass)
+                await obs_http_client.authenticate_and_store_token()
                 valid = True
-            except aiohttp.ClientResponseError as exception:
+            except ApiAuthError as exception:
                 _LOGGER.error(f"Error while login to Orange API. Credentials are likely incorrect : {exception}")
                 errors["base"] = "auth_error"
             except Exception as e:
@@ -38,48 +38,6 @@ class SetupConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "generic_error"
             if valid:
                 _LOGGER.debug("Connectivity to Orange API validated")
-            """
-
-            # TODO title may get value of contract name+car get by API
-            return self.async_create_entry(title="Orange Internet on the move Data", data=user_input)
-
+                return self.async_create_entry(title="Orange Internet on the move Data", data=user_input)
         # If there is no user input or there were errors, show the form again, including any errors that were found with the input.
         return self.async_show_form(step_id="user", data_schema=vol.Schema(DATA_SCHEMA), errors=errors)
-
-    def _configuration_menu(self, step_id: str):
-        return self.async_show_menu(
-            step_id=step_id,
-            menu_options=[
-                "finish_configuration",
-            ],
-        )
-
-    async def async_step_finish_configuration(self, user_input=None):
-        _LOGGER.info(f"Configuration from user is finished, input is {self.user_input}")
-        # await self.async_set_unique_id(self.user_input[CONF_CLIENT_ID])
-        # self._abort_if_unique_id_configured()
-        # # will call async_setup_entry defined in __init__.py file
-        # return self.async_create_entry(title="ecowatt by RTE", data=self.user_input)
-
-
-class LoginClient:
-    def __init__(self, config):
-        self.config = config
-        self.token = ""
-
-    async def client(self):
-        headers = {"x-application": "CLIENT_PORTAL",
-                   "x-provider": "RENAULT"}
-        basic_authorization = aiohttp.helpers.BasicAuth(
-            self.config[CONF_USERNAME], self.config[CONF_PASSWORD]
-        )
-
-        _LOGGER.debug(f"Authenticating with basic auth {basic_authorization}")
-        async with aiohttp.ClientSession() as session:
-            async with session.post(BASE_URL + ENDPOINT_LOGIN, auth=basic_authorization, headers=headers) as response:
-                _LOGGER.debug("Status:", response.status)
-                _LOGGER.debug("x-auth-token:", response.headers['x-auth-token'])
-        await response.text()
-        self.token = response.headers['x-auth-token']
-        _LOGGER.debug("Fetched a token from OBS auth")
-        return session
