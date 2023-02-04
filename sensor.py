@@ -99,7 +99,7 @@ class DataLeftPercentageSensorEntity(SensorEntity, SensorDataBase):
         self._attr_name = "Left data percentage"
         self._attr_unique_id = f"{self.id}_left_data_percentage"
         self._attr_native_unit_of_measurement = PERCENTAGE
-        self._attr_device_class = SensorDeviceClass.DATA_SIZE
+        self._attr_icon = "mdi:gauge"
         self._attr_native_value = floor(
             obs_full_data.consumption.left_data / obs_full_data.consumption.initial_data * 100)
 
