@@ -12,11 +12,15 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfInformation
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity
-from .dto import ConsumptionOfDevice
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, CoordinatorEntity, UpdateFailed
+
+from .dto import ConsumptionOfDevice, Device, OBSFullData
+from .OBSHttpClient import ObsHttpClient, ApiAuthError
 from .const import (
-    DOMAIN, )
+    DOMAIN, ENDPOINT_HEADER_PROVIDER, )
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,119 +49,158 @@ async def async_setup_entry(
     await obs_coordinator.async_config_entry_first_refresh()
 
     _LOGGER.info(f"async_add_entities with {obs_coordinator.data}")
-    new_devices = [DataSensorEntity(obs_coordinator, obs_coordinator.data),
-                   DataConsumedSensorEntity(obs_coordinator, obs_coordinator.data)]
+    new_devices = [
+        SensorDataBase(obs_coordinator, obs_coordinator.data),
+        StartDatePlanSensorEntity(obs_coordinator, obs_coordinator.data),
+        ExpiryDatePlanSensorEntity(obs_coordinator, obs_coordinator.data),
+        DataInitialSensorEntity(obs_coordinator, obs_coordinator.data),
+        DataConsumedSensorEntity(obs_coordinator, obs_coordinator.data),
+        PlanTypeSensorEntity(obs_coordinator, obs_coordinator.data)
+    ]
     _LOGGER.info(f"async_add_entities new_devices={new_devices}")
     if new_devices:
         async_add_entities(new_devices)
     _LOGGER.info("async_add_entities done")
 
 
-"""
-class DataSensor(SensorEntity):
-
-    def __init__(self, obs_coordinator: OBSAPICoordinator, hass: HomeAssistant):
-        self._attr_name = "Data contract"
-        self._attr_native_unit_of_measurement = UnitOfInformation.KILOBYTES
-        self._attr_device_class = SensorDeviceClass.DATA_SIZE
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-        self.coordinator = obs_coordinator
-        super().__init__(hass=hass)
-
-    @property
-    def unique_id(self) -> str:
-        return f"orange-internet-on-the-move-subscription"
-
-    def update(self) -> None:
-        self.coordinator.
-        self._attr_native_value = 1048576
-
-
-        SensorEntityDescription(
-            key="data_limit",
-            name="Data limit",
-            native_unit_of_measurement=UnitOfInformation.KILOBITS,
-            device_class=SensorDeviceClass.DATA_SIZE,
-            icon="mdi:download",
-        ),
-        SensorEntityDescription(
-            key="data_remaining",
-            name="Data remaining",
-            native_unit_of_measurement=UnitOfInformation.KILOBITS,
-            device_class=SensorDeviceClass.DATA_SIZE,
-            icon="mdi:download",
-        )
-"""
-
-
 class SensorDataBase(CoordinatorEntity):
-    def __init__(self, coordinator, data_plan_device: ConsumptionOfDevice):
+    def __init__(self, coordinator, obs_full_data: OBSFullData):
         """Initialize the sensor."""
-        super().__init__(coordinator, context=data_plan_device)
-        self.data_plan_device = data_plan_device
-        self.id = 123456789876543210
+        super().__init__(coordinator, context=obs_full_data)
+        self.device_consumption = obs_full_data.consumption
+        self.device = obs_full_data.device
+        self.id = self.device.device_id
 
-    # To link this entity to the cover device, this property must return an
-    # identifiers value matching that used in the cover, but no other information such
-    # as name. If name is returned, this entity will then also become a device in the
-    # HA UI.
     @property
-    def device_info(self):
-        """Return information to link this entity with the correct device."""
-        return {"identifiers": {(DOMAIN, self.id)}}
-        # return {"identifiers": {(DOMAIN, self.plan_data.roller_id)}}
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        # return {"identifiers": {(DOMAIN, self.id)}}
+        return DeviceInfo(
+            identifiers={
+                # Serial numbers are unique identifiers within a specific domain
+                (DOMAIN, self.id)
+            },
+            name=f"Data Plan of {self.device.user_name} for {self.device.tag}",
+            manufacturer=ENDPOINT_HEADER_PROVIDER,
+            model=self.device_consumption.type,
+            hw_version=self.device.serial_number
+        )
 
 
 # todo check https://developers.home-assistant.io/docs/device_registry_index/#defining-devices
 class DataConsumedSensorEntity(SensorEntity, SensorDataBase):
 
-    def __init__(self, coordinator, data_plan: ConsumptionOfDevice):
-        _LOGGER.info(f"Creating DataSensorEntity with {data_plan}")
+    def __init__(self, coordinator, obs_full_data: OBSFullData):
+        _LOGGER.info(f"Creating DataSensorEntity with {obs_full_data}")
         """Pass coordinator to CoordinatorEntity."""
 
-        super().__init__(coordinator, data_plan)
+        super().__init__(coordinator, obs_full_data)
         self._attr_name = "Data consummed"
         self._attr_unique_id = f"{self.id}_consumed_data"
         self._attr_native_unit_of_measurement = UnitOfInformation.KILOBYTES
         self._attr_device_class = SensorDeviceClass.DATA_SIZE
         self._attr_state_class = SensorStateClass.MEASUREMENT
-        self._attr_native_value = data_plan.left_data
+        self._attr_native_value = obs_full_data.consumption.left_data
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        new_state_value = self.coordinator.data[self._attr_native_value]["state"]
-        _LOGGER.info(f"_handle_coordinator_update previous : {self._attr_native_value} new {new_state_value}")
+        new_state_value = self.coordinator.data.consumption.left_data
+        _LOGGER.info(
+            f"DataConsumedSensorEntity _handle_coordinator_update previous : {self._attr_native_value} new {new_state_value}")
         self._attr_native_value = new_state_value
         self.async_write_ha_state()
 
 
-class DataSensorEntity(SensorEntity, SensorDataBase):
+class DataInitialSensorEntity(SensorEntity, SensorDataBase):
 
-    def __init__(self, coordinator, data_plan: ConsumptionOfDevice):
-        _LOGGER.info(f"Creating DataSensorEntity with {data_plan}")
+    def __init__(self, coordinator, obs_full_data: OBSFullData):
+        _LOGGER.info(f"Creating DataSensorEntity with {obs_full_data}")
         """Pass coordinator to CoordinatorEntity."""
-        super().__init__(coordinator, data_plan)
+        super().__init__(coordinator, obs_full_data)
         self._attr_name = "Data Plan"
         self._attr_unique_id = f"{self.id}_initial_data"
         self._attr_native_unit_of_measurement = UnitOfInformation.KILOBYTES
         self._attr_device_class = SensorDeviceClass.DATA_SIZE
         self._attr_state_class = SensorStateClass.MEASUREMENT
-        self._attr_native_value = data_plan.initial_data
+        self._attr_native_value = obs_full_data.consumption.initial_data
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        new_state_value = self.coordinator.data[self._attr_native_value]["state"]
-        _LOGGER.info(f"_handle_coordinator_update previous : {self._attr_native_value} new {new_state_value}")
+        new_state_value = self.coordinator.data.consumption.initial_data
+        _LOGGER.info(
+            f"DataSensorEntity _handle_coordinator_update previous : {self._attr_native_value} new {new_state_value}")
         self._attr_native_value = new_state_value
         self.async_write_ha_state()
 
 
-class OBSCoordinator(DataUpdateCoordinator[ConsumptionOfDevice]):
+class StartDatePlanSensorEntity(SensorEntity, SensorDataBase):
+
+    def __init__(self, coordinator, obs_full_data: OBSFullData):
+        _LOGGER.info(f"Creating DatePlanSensorEntity with {obs_full_data}")
+        """Pass coordinator to CoordinatorEntity."""
+        super().__init__(coordinator, obs_full_data)
+        self._attr_name = "Start date"
+        self._attr_unique_id = f"{self.id}_start_date"
+        self._attr_device_class = SensorDeviceClass.DATE
+        self._attr_native_value = obs_full_data.consumption.start_date
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        new_state_value = self.coordinator.data.consumption.start_date
+        _LOGGER.info(
+            f"StartDatePlanSensorEntity _handle_coordinator_update previous : {self._attr_native_value} new {new_state_value}")
+        self._attr_native_value = new_state_value
+        self.async_write_ha_state()
+
+
+class ExpiryDatePlanSensorEntity(SensorEntity, SensorDataBase):
+
+    def __init__(self, coordinator, obs_full_data: OBSFullData):
+        _LOGGER.info(f"Creating DatePlanSensorEntity with {obs_full_data}")
+        """Pass coordinator to CoordinatorEntity."""
+        super().__init__(coordinator, obs_full_data)
+        self._attr_name = "Expiry date"
+        self._attr_unique_id = f"{self.id}_expiry_date"
+        self._attr_device_class = SensorDeviceClass.DATE
+        self._attr_native_value = obs_full_data.consumption.expiry_date
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        new_state_value = self.coordinator.data.consumption.expiry_date
+        _LOGGER.info(
+            f"ExpiryDatePlanSensorEntity _handle_coordinator_update previous : {self._attr_native_value} new {new_state_value}")
+        self._attr_native_value = new_state_value
+        self.async_write_ha_state()
+
+
+class PlanTypeSensorEntity(SensorEntity, SensorDataBase):
+
+    def __init__(self, coordinator, obs_full_data: OBSFullData):
+        _LOGGER.info(f"Creating DatePlanSensorEntity with {obs_full_data}")
+        """Pass coordinator to CoordinatorEntity."""
+        super().__init__(coordinator, obs_full_data)
+        self._attr_name = "Plan Type"
+        self._attr_unique_id = f"{self.id}_plan_type"
+        self._attr_native_value = obs_full_data.consumption.type
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        new_state_value = self.coordinator.data.consumption.type
+        _LOGGER.info(
+            f"PlanTypeSensorEntity _handle_coordinator_update previous : {self._attr_native_value} new {new_state_value}")
+        self._attr_native_value = new_state_value
+        self.async_write_ha_state()
+
+
+class OBSCoordinator(DataUpdateCoordinator[OBSFullData]):
     """A coordinator to fetch data from the api only once"""
 
-    def __init__(self, hass, obs_api_client):
+    def __init__(self, hass, obs_api_client: ObsHttpClient):
         """Initialize my coordinator."""
         super().__init__(
             hass,
@@ -165,15 +208,14 @@ class OBSCoordinator(DataUpdateCoordinator[ConsumptionOfDevice]):
             # Name of the data. For logging purposes.
             name="Orange Internet on the move sensor",
             # Polling interval. Will only be polled if there are subscribers.
-            update_interval=timedelta(seconds=60),
+            update_interval=timedelta(seconds=360),
         )
-        self.obs_api_client = obs_api_client
+        self.obs_api_client: ObsHttpClient = obs_api_client
 
-    async def _async_update_data(self):
+    async def _async_update_data(self) -> OBSFullData:
         _LOGGER.debug("Starting collecting data")
-        _LOGGER.debug("Fake call on OBS API")
 
-        return ConsumptionOfDevice("pipo", 3145728, 2411724, 1234, 1234)
+        # return ConsumptionOfDevice("pipo", 3145728, 2411724, 1234, 1234)
 
         """Fetch data from API endpoint.
 
@@ -181,28 +223,19 @@ class OBSCoordinator(DataUpdateCoordinator[ConsumptionOfDevice]):
         so entities can quickly look up their data.
         """
         try:
-            # Note: asyncio.TimeoutError and aiohttp.ClientError are already
-            # handled by the data update coordinator.
-            # async with async_timeout.timeout(10):
-            # Grab active context variables to limit data required to be fetched from API
-            # Note: using context is not required if there is no need or ability to limit
-            # data retrieved from API.
-            # listening_idx = set(self.async_contexts())
-            # return await self.my_api.fetch_data(listening_idx)
+            await self.obs_api_client.authenticate_and_store_token()
+            first_device: Device = await self.obs_api_client.get_first_device_info()
+            _LOGGER.debug(f"First device fetched : {first_device}")
+            consumption_info: ConsumptionOfDevice = \
+                await self.obs_api_client.get_consumption_of_device(device=first_device)
+            _LOGGER.debug(f"Consumption fetched : {consumption_info}")
 
-            """
-            auth_token = await self.obs_api_client.get_auth_token()
-            user_info = await self.obs_api_client.get_user_info()
-            first_device_info = await self.obs_api_client.get_devices_info()
-            consumption_info = await self.obs_api_client.get_consumption_of_device(device=first_device_info)
-
-            return consumption_info
-            """
+            return OBSFullData(device=first_device, consumption=consumption_info)
         except ApiAuthError as err:
             # Raising ConfigEntryAuthFailed will cancel future updates
             # and start a config flow with SOURCE_REAUTH (async_step_reauth)
             raise ConfigEntryAuthFailed from err
-        except ApiError as err:
-            raise UpdateFailed(f"Error communicating with API: {err}")
+        # except ApiError as err:
+        #     raise UpdateFailed(f"Error communicating with API: {err}")
         except Exception as err:
             raise UpdateFailed(f"Error communicating with API: {err}")
