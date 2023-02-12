@@ -1,7 +1,6 @@
 {
   "name": "Orange \"Internet On the move\" Renault Home Assistant Integration",
-  "content_in_root": true,
   "homeassistant": "2023.1.6",
   "render_readme": true,
-  "country": ["US"]
+  "country": ["fr"]
 }

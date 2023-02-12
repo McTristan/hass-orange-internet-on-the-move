@@ -1,11 +1,10 @@
 import logging
 
-import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
-from .OBSHttpClient import ObsHttpClient, ApiAuthError
 
-from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, BASE_URL, ENDPOINT_LOGIN
+from .OBSHttpClient import ObsHttpClient, ApiAuthError
+from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD
 
 _LOGGER = logging.getLogger(__name__)
 DATA_SCHEMA = {
