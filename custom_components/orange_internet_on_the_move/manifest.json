@@ -1,13 +1,13 @@
 {
-  "config_flow": true,
+  "domain": "orange_internet_on_the_move",
+  "name": "Orange Internet on the move",
   "codeowners": ["@rexave"],
+  "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/rexave/hass-orange-internet-on-the-move",
-  "domain": "orange_internet_on_the_move",
   "iot_class": "cloud_polling",
   "integration_type": "device",
   "issue_tracker": "https://github.com/rexave/hass-orange-internet-on-the-move/issues",
-  "name": "Orange Internet on the move",
   "requirements": [],
   "version": "0.1.0"
 }
