@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configuração",
+        "description": "Inserir as credenciais para aceder ao Orange Internet no portal da Renault",
+        "data": {
+          "config_username": "utilizador",
+          "config_password": "password"
+        }
+      }
+    },
+    "error": {
+      "auth_error": "Autenticação Falhou",
+      "generic_error": "A ligação a orange API falhou"
+    },
+    "abort": {
+      "already_configured": "Equipamento já configurado"
+    }
+  }
+}
