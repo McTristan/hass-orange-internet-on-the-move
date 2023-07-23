@@ -121,7 +121,7 @@ class DataLeftSensorEntity(SensorEntity, SensorDataBase):
         super().__init__(coordinator, obs_full_data)
         self._attr_name = "Left data"
         self._attr_unique_id = f"{self.id}_left_data"
-        self._attr_native_unit_of_measurement = UnitOfInformation.MEGABITS
+        self._attr_native_unit_of_measurement = UnitOfInformation.MEGABYTES
         self._attr_device_class = SensorDeviceClass.DATA_SIZE
         self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_native_value = obs_full_data.consumption.left_data / 1024
@@ -144,7 +144,7 @@ class DataInitialSensorEntity(SensorEntity, SensorDataBase):
         super().__init__(coordinator, obs_full_data)
         self._attr_name = "Initial Data"
         self._attr_unique_id = f"{self.id}_initial_data"
-        self._attr_native_unit_of_measurement = UnitOfInformation.MEGABITS
+        self._attr_native_unit_of_measurement = UnitOfInformation.MEGABYTES
         self._attr_device_class = SensorDeviceClass.DATA_SIZE
         self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_native_value = obs_full_data.consumption.initial_data / 1024
