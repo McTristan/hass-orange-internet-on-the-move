@@ -11,5 +11,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/rexave/hass-orange-internet-on-the-move/issues",
   "requirements": [],
-  "version": "0.1.2"
+  "version": "0.1.2a"
 }
